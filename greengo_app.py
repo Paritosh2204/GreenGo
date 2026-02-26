@@ -302,7 +302,7 @@ if run or True:  # always show map; run triggers computation
         index=[n.split(" ")[0] + "…" if len(n) > 15 else n for n in active_local_names],
         columns=[n.split(" ")[0] + "…" if len(n) > 15 else n for n in active_local_names]
     )
-    st.dataframe(Q_display.style.background_gradient(cmap="Greens"), use_container_width=True)
+    st.dataframe(Q_display, use_container_width=True)
     st.caption("(Full Q-table visible after training — green = lower emission preference)")
 
     # ── SEGMENT BREAKDOWN ────────────────────
