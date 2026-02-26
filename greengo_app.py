@@ -189,8 +189,8 @@ st.markdown("---")
 st.subheader("🧠 Q-Table Explainability")
 st.caption("Learned Q-values — more negative = agent avoids that edge (high emission). Less negative = preferred green path.")
 short = [nm[:12]+"…" if len(nm)>12 else nm for nm in local_names]
-Q_df  = pd.DataFrame(Q, index=short, columns=short).round(4)
-st.dataframe(Q_df, use_container_width=True)
+Q_df  = pd.DataFrame(Q.round(4), index=short, columns=short).reset_index().rename(columns={"index":"Location"})
+st.dataframe(Q_df.astype(str), use_container_width=True)
 st.caption(f"Rows = current location · Columns = next location · Trained over {episodes} episodes")
 
 st.markdown("---")
