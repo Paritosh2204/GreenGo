@@ -41,10 +41,7 @@ def build_dist_matrix(node_dict):
 
 def get_metrics(path, D):
     dist  = sum(D[path[i]][path[i+1]] for i in range(len(path)-1))
-    co2   = round(dist * CO2_PER_KM, 2)
-    time  = round((dist / SPEED_KMPH) * 60, 1)
-    money = round(dist * COST_PER_KM, 1)
-    return round(dist, 2), co2, time, money
+    return round(dist,2), round(dist*CO2_PER_KM,2), round((dist/SPEED_KMPH)*60,1), round(dist*COST_PER_KM,1)
 
 def standard_route(start, indices, D):
     unvisited = [i for i in indices if i != start]
@@ -61,23 +58,17 @@ def green_route_ql(start, indices, D, w_co2=2.0, w_time=0.5, w_money=0.3, episod
     rev = {i: v for v, i in idx.items()}
     Q   = np.zeros((n, n))
     alpha, gamma = 0.15, 0.9
-
     for ep in range(episodes):
         eps = max(0.05, 1.0 - ep / episodes)
         cur = idx[start]
         unvisited = [i for i in range(n) if i != cur]
         while unvisited:
-            if np.random.rand() < eps:
-                nxt = np.random.choice(unvisited)
-            else:
-                nxt = max(unvisited, key=lambda j: Q[cur][j])
-            gi, gj = rev[cur], rev[nxt]
-            d = D[gi][gj]
-            reward = -(w_co2 * d * CO2_PER_KM + w_time * (d/SPEED_KMPH)*60/100 + w_money * d * COST_PER_KM/1000)
+            nxt = np.random.choice(unvisited) if np.random.rand() < eps else max(unvisited, key=lambda j: Q[cur][j])
+            d = D[rev[cur]][rev[nxt]]
+            reward = -(w_co2*d*CO2_PER_KM + w_time*(d/SPEED_KMPH)*60/100 + w_money*d*COST_PER_KM/1000)
             future = max(Q[nxt][k] for k in unvisited if k != nxt) if len(unvisited) > 1 else 0
             Q[cur][nxt] += alpha * (reward + gamma * future - Q[cur][nxt])
             unvisited.remove(nxt); cur = nxt
-
     cur = idx[start]
     unvisited = [i for i in range(n) if i != cur]
     path_local = [cur]
@@ -85,20 +76,19 @@ def green_route_ql(start, indices, D, w_co2=2.0, w_time=0.5, w_money=0.3, episod
         nxt = max(unvisited, key=lambda j: Q[cur][j])
         path_local.append(nxt); unvisited.remove(nxt); cur = nxt
     path_local.append(idx[start])
-    return [rev[i] for i in path_local], Q, [rev[i] for i in range(n)]
+    return [rev[i] for i in path_local], Q
 
-# ── STYLES ──
 st.markdown("""
 <style>
 .big-title  { font-size:2.4rem; font-weight:800; color:#2d7d2d; }
 .subtitle   { font-size:1.1rem; color:#888; margin-top:-10px; }
 .green-box  { background:#d4edda; border-left:5px solid #2d7d2d; padding:12px 18px;
-              border-radius:6px; margin:6px 0; color:#155724; font-weight:600; font-size:1rem; }
+              border-radius:6px; margin:6px 0; color:#155724; font-weight:600; }
 .red-box    { background:#f8d7da; border-left:5px solid #c0392b; padding:12px 18px;
-              border-radius:6px; margin:6px 0; color:#721c24; font-weight:600; font-size:1rem; }
-.saving-ok  { background:#2d7d2d; color:#ffffff; padding:16px 24px; border-radius:10px;
+              border-radius:6px; margin:6px 0; color:#721c24; font-weight:600; }
+.saving-ok  { background:#2d7d2d; color:#fff; padding:16px 24px; border-radius:10px;
               font-size:1.25rem; font-weight:700; text-align:center; margin:16px 0; }
-.saving-zero{ background:#e67e22; color:#ffffff; padding:16px 24px; border-radius:10px;
+.saving-zero{ background:#e67e22; color:#fff; padding:16px 24px; border-radius:10px;
               font-size:1.1rem; font-weight:700; text-align:center; margin:16px 0; }
 </style>
 """, unsafe_allow_html=True)
@@ -114,10 +104,10 @@ with st.sidebar:
     selected = st.multiselect("Pick 3–8 delivery stops:", options=node_names[1:], default=node_names[1:5])
     st.markdown("---")
     st.subheader("🎛️ Green Weight (w_CO2)")
-    w_co2   = st.slider("CO2 weight", 1.0, 3.0, 2.0, 0.1)
-    w_time  = st.slider("Time weight", 0.1, 1.5, 0.5, 0.1)
-    w_money = st.slider("Cost weight", 0.1, 1.5, 0.3, 0.1)
-    episodes= st.slider("Q-Learning episodes", 50, 300, 150, 10)
+    w_co2    = st.slider("CO2 weight", 1.0, 3.0, 2.0, 0.1)
+    w_time   = st.slider("Time weight", 0.1, 1.5, 0.5, 0.1)
+    w_money  = st.slider("Cost weight", 0.1, 1.5, 0.3, 0.1)
+    episodes = st.slider("Q-Learning episodes", 50, 300, 150, 10)
     run = st.button("🚀 Find Green Route", use_container_width=True, type="primary")
 
 if len(selected) < 2:
@@ -135,11 +125,10 @@ if not run:
 
 active_nodes = {k: ALL_NODES[k] for k in active_names}
 D, local_names = build_dist_matrix(active_nodes)
-n = len(local_names)
-all_indices = list(range(n))
+all_indices = list(range(len(local_names)))
 
 with st.spinner("🤖 Training MODQN agent..."):
-    g_path, Q, q_names = green_route_ql(0, all_indices, D, w_co2=w_co2, w_time=w_time, w_money=w_money, episodes=episodes)
+    g_path, Q = green_route_ql(0, all_indices, D, w_co2=w_co2, w_time=w_time, w_money=w_money, episodes=episodes)
 
 s_path = standard_route(0, all_indices, D)
 
@@ -155,28 +144,26 @@ def rstr(path): return " → ".join(local_names[i] for i in path)
 
 st.markdown("---")
 col1, col2 = st.columns(2)
-
 with col1:
     st.subheader("🟢 GreenGo Route (MODQN)")
     st.write(rstr(g_path))
-    st.markdown(f'<div class="green-box">🌿 CO2: {g_co2} kg</div>',     unsafe_allow_html=True)
-    st.markdown(f'<div class="green-box">⏱️ Time: {g_time} min</div>',   unsafe_allow_html=True)
-    st.markdown(f'<div class="green-box">📏 Distance: {g_dist} km</div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="green-box">💰 Cost: ₹{g_money}</div>',     unsafe_allow_html=True)
-
+    st.markdown(f'<div class="green-box">🌿 CO2: {g_co2} kg</div>',      unsafe_allow_html=True)
+    st.markdown(f'<div class="green-box">⏱️ Time: {g_time} min</div>',    unsafe_allow_html=True)
+    st.markdown(f'<div class="green-box">📏 Distance: {g_dist} km</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="green-box">💰 Cost: ₹{g_money}</div>',      unsafe_allow_html=True)
 with col2:
     st.subheader("🔴 Standard Route (Time-Optimal)")
     st.write(rstr(s_path))
-    st.markdown(f'<div class="red-box">🏭 CO2: {s_co2} kg</div>',      unsafe_allow_html=True)
-    st.markdown(f'<div class="red-box">⏱️ Time: {s_time} min</div>',    unsafe_allow_html=True)
-    st.markdown(f'<div class="red-box">📏 Distance: {s_dist} km</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="red-box">💰 Cost: ₹{s_money}</div>',      unsafe_allow_html=True)
+    st.markdown(f'<div class="red-box">🏭 CO2: {s_co2} kg</div>',        unsafe_allow_html=True)
+    st.markdown(f'<div class="red-box">⏱️ Time: {s_time} min</div>',      unsafe_allow_html=True)
+    st.markdown(f'<div class="red-box">📏 Distance: {s_dist} km</div>',   unsafe_allow_html=True)
+    st.markdown(f'<div class="red-box">💰 Cost: ₹{s_money}</div>',        unsafe_allow_html=True)
 
 st.markdown("---")
 if co2_pct > 0:
     st.markdown(f'<div class="saving-ok">🌍 GreenGo saves <b>{co2_pct}%</b> CO2 ({co2_saved} kg less) · Time change: <b>{time_pct}%</b> ({time_diff} min)</div>', unsafe_allow_html=True)
 else:
-    st.markdown(f'<div class="saving-zero">⚠️ Same path found. Try more stops or increase CO2 weight slider above 2.0!</div>', unsafe_allow_html=True)
+    st.markdown('<div class="saving-zero">⚠️ Same path found. Try more stops or increase CO2 weight above 2.0!</div>', unsafe_allow_html=True)
 
 st.subheader("📊 Comparison Chart")
 chart_df = pd.DataFrame({
@@ -185,14 +172,21 @@ chart_df = pd.DataFrame({
 }, index=["CO2 (kg)", "Time (min)", "Distance (km)", "Cost (₹/10)"])
 st.bar_chart(chart_df)
 
+# ── Q-TABLE: safe display using st.table (no Arrow conversion) ──
 st.markdown("---")
 st.subheader("🧠 Q-Table Explainability")
 st.caption("Learned Q-values — more negative = agent avoids that edge (high emission). Less negative = preferred green path.")
-short = [nm[:12]+"…" if len(nm)>12 else nm for nm in local_names]
-Q_df  = pd.DataFrame(Q.round(4), index=short, columns=short).reset_index().rename(columns={"index":"Location"})
-st.dataframe(Q_df.astype(str), use_container_width=True)
-st.caption(f"Rows = current location · Columns = next location · Trained over {episodes} episodes")
+short_names = [nm[:10]+"…" if len(nm)>10 else nm for nm in local_names]
+rows_qt = []
+for i, row_name in enumerate(short_names):
+    row = {"From \\ To": row_name}
+    for j, col_name in enumerate(short_names):
+        row[f"→{col_name}"] = round(float(Q[i][j]), 4)
+    rows_qt.append(row)
+st.table(pd.DataFrame(rows_qt).set_index("From \\ To"))
+st.caption(f"Trained over {episodes} episodes · Rows = current node · Columns = next node")
 
+# ── SEGMENT BREAKDOWN ──
 st.markdown("---")
 st.subheader("📋 Segment-by-Segment Breakdown (Green Route)")
 rows = []
@@ -202,4 +196,4 @@ for i in range(len(g_path)-1):
     rows.append({"From": local_names[a], "To": local_names[b],
                  "Distance (km)": d, "CO2 (kg)": round(d*CO2_PER_KM,3),
                  "Time (min)": round((d/SPEED_KMPH)*60,1), "Cost (₹)": round(d*COST_PER_KM,1)})
-st.dataframe(pd.DataFrame(rows), use_container_width=True)
+st.table(pd.DataFrame(rows))
